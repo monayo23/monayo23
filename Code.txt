@@ -1,0 +1,96 @@
+Private Sub actualiser_Click()
+'On Error Resume Next
+Dim chemin As String: Dim adresse As String
+Dim requeteHttp As Object: Dim flux As Object
+
+chemin = ThisWorkbook.Path & "\tirages\loto.zip"
+adresse = "https://media.fdj.fr/static/csv/loto/loto_201911.zip"
+Set requeteHttp = CreateObject("Microsoft.XMLHTTP")
+requeteHttp.Open "GET", adresse
+requeteHttp.send
+
+If requeteHttp.Status = 200 Then
+    Set flux = CreateObject("ADODB.Stream")
+    flux.Open
+    flux.Type = 1
+    flux.Write requeteHttp.responseBody
+    flux.SaveToFile chemin, 2
+    flux.Close
+    decompresser chemin, ThisWorkbook.Path & "\tirages\"
+    importer Replace(chemin, ".zip", ".csv")
+Else
+    MsgBox "Une erreur est survenue"
+End If
+
+Set requeteHttp = Nothing
+Set flux = Nothing
+
+End Sub
+
+Sub decompresser(cheminFichier As String, dossier As String)
+Dim source As FolderItems
+Dim commande As Shell
+Dim objetFichier As Object: Dim leDossier As Object: Dim chaqueFichier As Object
+
+Set objetFichier = CreateObject("scripting.filesystemobject")
+Set leDossier = objetFichier.GetFolder(dossier)
+
+If Dir(dossier & "loto.csv") <> "" Then
+    Kill dossier & "loto.csv"
+End If
+
+Set commande = CreateObject("Shell.Application")
+Set source = commande.Namespace(cheminFichier).Items
+
+commande.Namespace(dossier).CopyHere source
+
+For Each chaqueFichier In leDossier.Files
+    If (Right(chaqueFichier, 4) = ".csv") Then
+        Name dossier & chaqueFichier.Name As dossier & "loto.csv"
+    End If
+Next chaqueFichier
+
+Set commande = Nothing
+Set source = Nothing
+Set objetFichier = Nothing
+Set leDossier = Nothing
+Set chaqueFichier = Nothing
+
+End Sub
+
+Sub importer(Fichier As String)
+On Error Resume Next
+Dim ligne As Integer: Dim compteur As Integer: Dim i As Byte
+Dim texte As String: Dim elements As Variant
+
+ligne = 4: compteur = 1
+
+Open Fichier For Input As #1
+    Do While Not EOF(1)
+        Line Input #1, texte
+        texte = Replace(texte, Chr(10), Chr(13))
+    Loop
+Close #1
+
+Open Fichier For Output As #1
+    Print #1, texte
+Close #1
+
+Open Fichier For Input As #1
+    Do While Not EOF(1)
+    Line Input #1, texte
+        If compteur > 1 Then
+            elements = Split(texte, ";")
+            Cells(ligne, 2).Value = DateValue(Format(elements(2), "dd/mm/yyyy"))
+            For i = 3 To 8 'Correspondance - décalage une colonne
+                Cells(ligne, i).Value = elements(i + 1)
+            Next i
+            ligne = ligne + 1
+        End If
+'        MsgBox texte
+'        If compteur > 5 Then Exit Do
+        compteur = compteur + 1
+    Loop
+Close #1
+
+End Sub
